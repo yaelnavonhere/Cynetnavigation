@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cynet — Navigation Prototype (Direct)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-dark: #232430; --bg-darker: #1b1c27; --bg-content: #1e1f2e;
+    --tab-active-bg: #243659; --text-primary: #e4e4e8; --text-secondary: #c0c0c4;
+    --text-link: #509aff; --divider: rgba(255,255,255,0.10); --section-label: #6e6e7a;
+    --item-hover: rgba(255,255,255,0.05); --item-active: rgba(80,154,255,0.12);
+    --rail-w: 96px; --sidebar-w: 256px; --topbar-h: 52px;
+  }
+  html, body { height: 100%; background: var(--bg-darker); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text-primary); }
+
+  /* ── TOP BAR ── */
+  .topbar { height: var(--topbar-h); background: var(--bg-dark); border-bottom: 1px solid var(--divider); display: flex; align-items: center; padding: 0 20px; gap: 12px; position: fixed; top: 0; left: 0; right: 0; z-index: 200; }
+  .topbar-logo { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; letter-spacing: -0.3px; color: #fff; }
+  .topbar-logo svg { width: 28px; height: 28px; }
+  .topbar-badge { background: rgba(80,154,255,0.12); color: var(--text-link); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase; border: 1px solid rgba(80,154,255,0.2); }
+  .topbar-badge.direct { background: rgba(76,175,125,0.12); color: #4caf7d; border-color: rgba(76,175,125,0.25); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .topbar-right span { font-size: 13px; color: var(--text-secondary); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--tab-active-bg); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text-link); }
+  .test-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(80,154,255,0.35); background: rgba(80,154,255,0.08); color: var(--text-link); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; letter-spacing: 0.2px; }
+  .test-btn:hover { background: rgba(80,154,255,0.16); }
+  .test-btn.active { background: var(--text-link); color: #fff; border-color: var(--text-link); }
+  .test-btn svg { width: 14px; height: 14px; }
+  .topbar-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: var(--text-secondary); transition: background 0.15s, color 0.15s; }
+  .topbar-icon:hover { background: var(--item-hover); color: var(--text-primary); }
+  .topbar-icon svg { width: 18px; height: 18px; }
+  .topbar-divider { width: 1px; height: 20px; background: var(--divider); }
+
+  /* ── LAYOUT ── */
+  .layout { display: flex; height: calc(100vh - var(--topbar-h)); margin-top: var(--topbar-h); }
+
+  /* ── LEFT ICON RAIL ── */
+  .rail { width: var(--rail-w); background: var(--bg-dark); border-right: 1px solid var(--divider); display: flex; flex-direction: column; padding: 12px 0; gap: 4px; flex-shrink: 0; overflow-y: auto; }
+  .rail-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; padding: 10px 8px; cursor: pointer; border-radius: 8px; transition: background 0.15s; border: none; background: none; color: var(--text-secondary); }
+  .rail-item:hover { background: var(--item-hover); }
+  .rail-item.active { color: var(--text-link); }
+  .rail-item.active .rail-icon-wrap { background: var(--tab-active-bg); }
+  .rail-icon-wrap { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .rail-item svg { width: 22px; height: 22px; }
+  .rail-label { font-size: 11px; font-weight: 600; text-align: center; white-space: nowrap; }
+
+  /* ── SECONDARY SIDEBAR ── */
+  .sidebar-wrap { width: var(--sidebar-w); border-right: 1px solid var(--divider); flex-shrink: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar { background: var(--bg-dark); flex: 1; overflow-y: auto; padding: 0 8px 24px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+  .sidebar-fade { position: absolute; bottom: 0; left: 0; right: 0; height: 48px; background: linear-gradient(to bottom, transparent, var(--bg-dark)); pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+  .sidebar-fade.visible { opacity: 1; }
+  .sidebar-more { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--section-label); pointer-events: none; opacity: 0; transition: opacity 0.2s; white-space: nowrap; }
+  .sidebar-more.visible { opacity: 1; }
+  .sidebar-more svg { width: 10px; height: 10px; }
+  .sidebar-header { font-size: 18px; font-weight: 500; color: var(--text-secondary); padding: 12px 16px 8px; background: var(--bg-dark); position: sticky; top: 0; z-index: 2; }
+
+  /* ── SEARCH (less prominent) ── */
+  .search-wrap { position: sticky; top: 44px; z-index: 2; background: var(--bg-dark); padding: 0 8px 8px; }
+  .search-inner { position: relative; }
+  .search-input { width: 100%; height: 28px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; color: var(--text-secondary); font-size: 12px; padding: 0 24px 0 27px; outline: none; transition: border-color 0.15s, background 0.15s; font-family: inherit; }
+  .search-input::placeholder { color: var(--section-label); }
+  .search-input:focus { border-color: rgba(80,154,255,0.3); background: rgba(80,154,255,0.04); color: var(--text-primary); }
+  .search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--section-label); pointer-events: none; opacity: 0.7; }
+  .search-icon svg { width: 12px; height: 12px; display: block; }
+  .search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); color: var(--section-label); background: none; border: none; cursor: pointer; display: none; padding: 2px; }
+  .search-clear svg { width: 11px; height: 11px; display: block; }
+  .search-clear:hover { color: var(--text-secondary); }
+  .search-empty { padding: 20px 16px; font-size: 13px; color: var(--section-label); text-align: center; }
+
+  /* sidebar sections */
+  .section-label { font-size: 10px; font-weight: 600; color: var(--section-label); letter-spacing: 0.8px; text-transform: uppercase; padding: 16px 16px 4px; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 36px; min-height: 36px; cursor: pointer; border-radius: 8px; font-size: 14px; font-weight: 400; color: var(--text-secondary); transition: background 0.12s, color 0.12s; border: none; background: none; width: 100%; text-align: left; flex-shrink: 0; }
+  .nav-item:hover { background: var(--item-hover); color: var(--text-primary); }
+  .nav-item.active { background: var(--item-active); color: var(--text-link); font-weight: 500; }
+  .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.6; }
+  .nav-item.active svg { opacity: 1; }
+  .nav-item mark { background: rgba(80,154,255,0.25); color: var(--text-primary); border-radius: 2px; padding: 0 1px; }
+
+  /* ── MAIN CONTENT ── */
+  .main { flex: 1; background: var(--bg-content); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  .placeholder { display: flex; flex-direction: column; align-items: center; gap: 14px; opacity: 0; transform: translateY(6px); transition: opacity 0.2s, transform 0.2s; max-width: 400px; text-align: center; padding: 24px; }
+  .placeholder.visible { opacity: 1; transform: translateY(0); }
+  .placeholder-icon { width: 56px; height: 56px; border-radius: 14px; background: rgba(80,154,255,0.10); display: flex; align-items: center; justify-content: center; }
+  .placeholder-icon svg { width: 28px; height: 28px; color: var(--text-link); }
+  .placeholder-title { font-size: 22px; font-weight: 600; color: var(--text-primary); }
+  .placeholder-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .placeholder-path { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--section-label); background: rgba(255,255,255,0.04); padding: 5px 12px; border-radius: 20px; flex-wrap: wrap; justify-content: center; }
+  .placeholder-path span { color: var(--text-secondary); }
+  .placeholder-path .sep { color: var(--section-label); }
+  .welcome { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+  .welcome svg { width: 52px; height: 52px; opacity: 0.2; }
+  .welcome-title { font-size: 20px; font-weight: 500; color: var(--text-secondary); }
+  .welcome-sub { font-size: 14px; color: var(--section-label); max-width: 280px; line-height: 1.6; }
+
+  /* ── QUESTION PANEL ── */
+  .q-panel {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    width: 560px; max-width: calc(100vw - 48px);
+    background: #1e2133; border: 1px solid rgba(80,154,255,0.25);
+    border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    z-index: 300; display: none; flex-direction: column; overflow: hidden;
+  }
+  .q-panel.visible { display: flex; }
+  .q-header { display: flex; align-items: center; padding: 14px 18px 10px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+  .q-badge { font-size: 11px; font-weight: 700; color: var(--text-link); background: rgba(80,154,255,0.12); padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .q-progress-wrap { flex: 1; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+  .q-progress-bar { height: 100%; background: var(--text-link); border-radius: 2px; transition: width 0.3s; }
+  .q-close { background: none; border: none; color: var(--section-label); cursor: pointer; padding: 2px; display: flex; }
+  .q-close:hover { color: var(--text-secondary); }
+  .q-close svg { width: 16px; height: 16px; }
+  .q-body { padding: 16px 18px 14px; }
+  .q-difficulty { font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 6px; }
+  .q-difficulty.easy { color: #4caf7d; }
+  .q-difficulty.medium { color: #f0a030; }
+  .q-difficulty.hard { color: #e05252; }
+  .q-text { font-size: 15px; font-weight: 500; color: var(--text-primary); line-height: 1.5; margin-bottom: 12px; }
+  .q-hint { font-size: 12px; color: var(--section-label); font-style: italic; }
+  .q-answer { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
+  .q-answer.show { display: block; }
+  .q-answer.neutral { background: rgba(80,154,255,0.10); color: var(--text-link); border: 1px solid rgba(80,154,255,0.2); }
+  .q-footer { display: flex; align-items: center; gap: 8px; padding: 0 18px 14px; }
+  .q-btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: background 0.15s; font-family: inherit; }
+  .q-btn.secondary { background: rgba(255,255,255,0.07); color: var(--text-secondary); }
+  .q-btn.secondary:hover { background: rgba(255,255,255,0.11); }
+  .q-btn.primary { background: var(--text-link); color: #fff; }
+  .q-btn.primary:hover { background: #3d87ff; }
+  .q-answered-label { font-size: 12px; color: var(--section-label); margin-left: auto; }
+  .q-summary { padding: 20px 18px; text-align: center; }
+  .q-summary-title { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+  .q-summary-sub { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px; }
+  .q-results { text-align: left; }
+  .q-result-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; }
+  .q-result-q { color: var(--text-secondary); flex: 1; line-height: 1.4; }
+  .q-result-a { color: var(--text-link); white-space: nowrap; font-weight: 500; }
+  .q-result-a.skipped { color: var(--section-label); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">
+    <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#509aff" opacity="0.15"/><path d="M14 5L5 10v8l9 5 9-5v-8L14 5z" fill="none" stroke="#509aff" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 5v18M5 10l9 5 9-5" stroke="#509aff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    Cynet
+  </div>
+  <div class="topbar-badge direct">Direct — Nav Prototype</div>
+  <div class="topbar-right">
+    <button class="test-btn" id="testBtn" onclick="toggleTest()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Navigation Test
+    </button>
+    <div class="topbar-divider"></div>
+    <div class="topbar-icon" title="Help">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div class="topbar-icon" title="AI Assistant">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+    </div>
+    <div class="topbar-icon" title="User Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
+    <div class="topbar-icon" title="Download Agent">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="rail" id="rail">
+    <button class="rail-item" data-tab="dashboard">
+      <div class="rail-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+      <span class="rail-label">Dashboard</span>
+    </button>
+    <button class="rail-item" data-tab="findings">
+      <div class="rail-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <span class="rail-label">Findings</span>
+    </button>
+    <button class="rail-item" data-tab="inventory">
+      <div class="rail-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><rect x="2" y="10" width="20" height="5" rx="1"/><rect x="2" y="17" width="20" height="4" rx="1"/></svg></div>
+      <span class="rail-label">Inventory</span>
+    </button>
+    <button class="rail-item" data-tab="enforcement">
+      <div class="rail-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <span class="rail-label">Enforcement</span>
+    </button>
+    <button class="rail-item" data-tab="reports">
+      <div class="rail-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+      <span class="rail-label">Reports</span>
+    </button>
+    <button class="rail-item" data-tab="settings">
+      <div class="rail-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+      <span class="rail-label">Settings</span>
+    </button>
+  </nav>
+
+  <div class="sidebar-wrap">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="sidebar-fade" id="sidebarFade"></div>
+    <div class="sidebar-more" id="sidebarMore">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6,9 12,15 18,9"/></svg>
+      scroll for more
+    </div>
+  </div>
+
+  <main class="main" id="main">
+    <div class="welcome">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <div class="welcome-title">Select a section to begin</div>
+      <div class="welcome-sub">Click any item in the left sidebar to explore the navigation.</div>
+    </div>
+  </main>
+</div>
+
+<!-- QUESTION PANEL -->
+<div class="q-panel" id="qPanel">
+  <div id="qContent"></div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// NAV DATA
+// ────────────────────────────────────────────────
+const NAV = {
+  dashboard: {
+    label:"Dashboard",
+    icon:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+    sections:[{items:["All-in-one Protection","Radar"]}]
+  },
+  findings: {
+    label:"Findings",
+    icon:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    sections:[
+      {items:["Alerts"]},
+      {title:"ENDPOINT DETECTIONS",items:["Misconfigurations","Vulnerabilities"]},
+      {title:"CLOUD DETECTIONS",items:["Risks","Malicious Emails"]},
+      {title:"ACTIVITY LOGS",items:["SIEM Events","AD Authentication Events","Asset Logs","Web Browsing Logs","Email Trace","Actions History","Audit Log"]}
+    ]
+  },
+  inventory: {
+    label:"Inventory",
+    icon:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><rect x="2" y="10" width="20" height="5" rx="1"/><rect x="2" y="17" width="20" height="4" rx="1"/></svg>`,
+    sections:[
+      {items:["Scanner"]},
+      {title:"ENDPOINT",items:["Management","Groups","Files","Hosts","Users","Domains","Sockets"]},
+      {title:"IDENTITY",items:["AD Domains","Enrollment"]},
+      {title:"CLOUD & SAAS",items:["AWS Buckets","AWS Addresses","Subdomains","SaaS Users","Microsoft Teams","SharePoint Sites","Email Forwarding Rules"]}
+    ]
+  },
+  enforcement: {
+    label:"Enforcement",
+    icon:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    sections:[
+      {title:"ENDPOINT PROTECTION",items:["Endpoint Protection Policy","IT Hygiene"]},
+      {title:"IDENTITY",items:["IDP Policies","ITDR Policy"]},
+      {title:"WEB CONTENT FILTERING",items:["Web Filtering Policy","Allowlist","Blocklists"]},
+      {title:"EMAIL SECURITY",items:["Email Policy","Allowlist","Blocklist","Requests"]},
+      {title:"DECEPTION",items:["Decoy Users","Decoy Files","Decoy Network"]},
+      {title:"DETECTION",items:["Threat Hunting","Custom XDR Rules"]},
+      {title:"RESPONSE",items:["Remediations","Playbooks","Auto Remediation","Action History"]},
+      {title:"EXCEPTIONS",items:["Allowlist & Exclusions"]}
+    ]
+  },
+  reports: {
+    label:"Reports",
+    icon:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+    sections:[{items:["View Reports","Report Scheduling"]}]
+  },
+  settings: {
+    label:"Settings",
+    icon:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+    sections:[{items:["Configuration","Advanced","Alerts","Users & Roles","Integrations","Security"]}]
+  }
+};
+
+// ────────────────────────────────────────────────
+// SCREEN DESCRIPTIONS
+// ────────────────────────────────────────────────
+const SCREEN_DESC = {
+  'All-in-one Protection': 'Master dashboard — protection status across all domains. Cards per layer (Endpoint, Identity, Cloud, Email, XDR) with alert counts, plus a categorized risk panel.',
+  'Radar': 'Visual threat snapshot: open alerts by severity with total security score, alerts over time chart, and a radar visualization across Files, Users, Hosts, and Network axes.',
+  'Alerts': 'Security alert triage table. Filter by severity and status; each alert shows type, affected assets, first/last seen, prevention method, and inline status control.',
+  'Misconfigurations': 'Endpoint misconfigurations ranked by severity. Examples: LLMNR disabled, Remote Desktop config, Print Spooler, WinRM. Shows fix status and affected endpoint counts.',
+  'Vulnerabilities': 'CVE-based vulnerabilities across managed endpoints. Severity-ranked with CVE ID, affected product, patch status, and initially detected date.',
+  'Risks': 'Cloud & SaaS posture risks (CSPM/SSPM). Risk by severity donut, affected services, recommended fixes, compliance tags, and last scan timestamp.',
+  'Malicious Emails': 'Emails blocked by Email Security. Shows subject, recipients, sender, violation type. Actions: Preview or Release each message.',
+  'SIEM Events': 'Raw log events from all connected sources. Event table: time, severity, source type, source name, source IP, user, operation. Includes pre-defined queries and data usage indicator.',
+  'AD Authentication Events': 'Active Directory login events across the environment. Shows login date, AD domain, username, source/destination host, login service type, and login result.',
+  'Asset Logs': 'Entity-scoped activity logs with tabs for: Files, Users, Hosts, Networks, Domains, Sockets. Behavioral analysis over time — equivalent to SIEM but filtered per entity type.',
+  'Web Browsing Logs': 'Web browsing activity filtered through Cynet WCF. Shows date, user, host, domain, protocol, and category. Filter by user/host and date range.',
+  'Email Trace': 'Trace the delivery path and status of a specific email — sender, recipient, timestamps, relay hops, and final disposition.',
+  'Actions History': 'Complete log of all automated actions taken: per entity type (Files, Hosts, Users, Network), plus Playbook and Auto Remediation executions.',
+  'Audit Log': 'Immutable audit log of all user actions in the dashboard. Shows user, requester IP, event type, and full event description.',
+  'Scanner': 'Configure and view results of active security scans on endpoints. Scan scheduling, coverage, and findings summary.',
+  'Management': 'All enrolled endpoints with status (OK/Faulty/Not Protected), OS, group, and last seen. Tabs for active endpoints, non-deployed endpoints, and other assets.',
+  'Groups': 'Endpoint groups with per-group protection module toggles: EPP (Detect/Prevent), EDR, NDR, Deception, IT Hygiene, Storage Device Control.',
+  'Files': 'File inventory with risk scores, company, affected endpoints, first/last seen. Click any file for a visual timeline, relationship graph, and detail tabs (Alerts, Occurrences, Hosts).',
+  'Hosts': 'Host inventory: name, IP address, OS, group, status, last seen. Drill down for alerts, users, active connections, and full activity timeline.',
+  'Users': 'User inventory: username, domain, endpoint count, alert count, last seen. Drill down for behavior analytics and associated alerts.',
+  'Domains': 'Discovered domain inventory with risk scores, categories, affected endpoint counts, and first/last seen dates.',
+  'Sockets': 'Network socket inventory: IP, protocol, port, affected endpoints, related alerts. Filter and search by IP or port.',
+  'AD Domains': 'Active Directory domain configurations connected for identity monitoring.',
+  'Enrollment': 'Agent enrollment configuration for identity monitoring coverage.',
+  'AWS Buckets': 'S3 bucket inventory: public/private exposure, permission status, and risk indicators.',
+  'AWS Addresses': 'AWS Elastic IPs and public addresses with exposure and usage indicators.',
+  'Subdomains': 'Discovered organizational subdomains with exposure risk and DNS resolution status.',
+  'SaaS Users': 'SaaS user inventory: email, connected apps (service icons), MFA count, admin flag, external indicator, and last login.',
+  'Microsoft Teams': 'Microsoft Teams channel and meeting configurations with associated risk indicators.',
+  'SharePoint Sites': 'SharePoint sites: URL, title, effective permissions count, conditions, editing flags, and Teams connection status.',
+  'Email Forwarding Rules': 'Detected email forwarding rules in your environment — potential data exfiltration indicators.',
+  'Endpoint Protection Policy': 'Scanning and monitoring profiles assigned to endpoint groups. Tabs: Antivirus (scan type, trigger, schedule), Windows Events, File Monitor, Storage Device Control.',
+  'IT Hygiene': 'Endpoint health and compliance validation. Tabs: Windows Patch Validation (known missing KBs), Unauthorized Applications, Application Patch Validation, Agent Validation.',
+  'IDP Policies': 'Identity Protection policies for detecting and responding to identity-based threats. Full policy workflow: Create, View, Edit, with enable/disable per policy.',
+  'ITDR Policy': '147+ Identity Threat Detection & Response policies with enable/disable toggles, group assignment, and last changed date.',
+  'Web Filtering Policy': 'WCF profiles defining allowed/blocked web content categories per user group. Create, view, edit, and assign to groups.',
+  'Email Policy': 'Email Security configuration: scanning rules, enforcement mode, and policy settings. Controls what is blocked, flagged, or allowed.',
+  'Allowlist': 'Approved senders, domains, or URLs that bypass security filters.',
+  'Blocklists': 'Blocked domains or URLs that are always intercepted by WCF.',
+  'Blocklist': 'Blocked senders or domains that are always intercepted by Email Security.',
+  'Requests': '~23 pending user-submitted requests to release blocked emails. Review sender, subject, and requester before approving.',
+  'Decoy Users': 'Honeypot user accounts placed across the environment to detect lateral movement and credential attacks.',
+  'Decoy Files': 'Decoy files placed on endpoints — any access triggers an alert indicating potential attacker activity.',
+  'Decoy Network': 'Honeypot network traps (fake shares, services) to detect lateral movement and reconnaissance.',
+  'Threat Hunting': 'Configure continuous background IoC searches across all endpoints: SHA256, IP, Domain, with severity and suppression settings.',
+  'Custom XDR Rules': 'Custom detection rules that generate alerts from SIEM events. Define field/condition/value rules with scope and severity.',
+  'Remediations': 'Custom remediation scripts (Script / Web API Call) per entity type, plus playbook management and execution server configuration.',
+  'Playbooks': 'Automated incident response playbooks: create, import, set automatic triggers, and view execution history.',
+  'Auto Remediation': 'Rules that automatically trigger remediation when matching alert patterns are detected. Set priority, remediation type, and enable/disable.',
+  'Action History': 'Log of all automated response actions: playbook executions, auto-remediations, and manual actions taken through the platform.',
+  'Allowlist & Exclusions': 'Allowlists and exclusions scoped per group to reduce false positives. 14 default entries with name, description, group scope, and host scope.',
+  'View Reports': 'Pre-built security reports for a selected date range. Tabs: ALL / Files / Hosts / Users / Networks. Charts for alerts by type, status, top 10 entities, radar.',
+  'Report Scheduling': 'Schedule automatic report delivery to specified email recipients.',
+  'Configuration': 'Site-level settings: operational notification recipients, SIEM syslog endpoint, timezone, import user data from CSV, AWS S3 export settings.',
+  'Advanced': 'Advanced settings: audit records to SIEM/AWS S3, agent uninstall password, file analysis (cloud sandbox), analyzed file retention, data privacy.',
+  'Alerts (Settings)': 'Alert notification configuration: email recipients, compliance settings, unscanned host alert thresholds, minimum severity for email alerts.',
+  'Users & Roles': 'Dashboard users and roles: email, role type (Operator/Dashboard/Read Only), site access, MFA status, login method (Local/Azure AD/SSO).',
+  'Integrations': 'Third-party integrations: Microsoft 365, Entra ID, AWS, Google Workspace, Okta, Slack, Salesforce, Zoom, Dropbox, Azure, and more.',
+  'Security': 'SSL certificate vault (known certificates by thumbprint and expiry) plus a security vault for storing credentials used in custom remediations.',
+};
+
+function getScreenDesc(tabKey, sectionTitle, itemName) {
+  // Handle the "Alerts" collision: Settings > Alerts vs Findings > Alerts
+  if (tabKey === 'settings' && itemName === 'Alerts') return SCREEN_DESC['Alerts (Settings)'];
+  return SCREEN_DESC[itemName] || null;
+}
+
+// ────────────────────────────────────────────────
+// ICONS
+// ────────────────────────────────────────────────
+const IC = {
+  'All-in-one Protection':'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4',
+  'Radar':'M2 12 A10 10 0 0 0 22 12 M5.64 5.64 A8 8 0 0 0 18.36 18.36 M8.46 8.46 A5 5 0 0 0 15.54 15.54 M12 12 m-2 0 a2 2 0 1 0 4 0 a2 2 0 1 0-4 0',
+  'Alerts':'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
+  'Misconfigurations':'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
+  'Vulnerabilities':'M12 9v4 M12 17h.01 M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z',
+  'Risks':'M12 2L2 7l10 5 10-5-10-5 M2 17l10 5 10-5 M2 12l10 5 10-5',
+  'Malicious Emails':'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6 M17 17l4 4 M17 21l4-4',
+  'SIEM Events':'M22 12h-4l-3 9L9 3l-3 9H2',
+  'AD Authentication Events':'M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3',
+  'Asset Logs':'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M12 22V12 M8 12h8',
+  'Web Browsing Logs':'M5 12.55a11 11 0 0 1 14.08 0 M1.42 9a16 16 0 0 1 21.16 0 M8.53 16.11a6 6 0 0 1 6.95 0 M12 20h.01',
+  'Email Trace':'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35',
+  'Actions History':'M3 3v5h5 M3.05 13A9 9 0 1 0 6 5.3L3 8',
+  'Audit Log':'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2 M8 2h8v4H8z M12 11h4 M12 16h4 M8 11h.01 M8 16h.01',
+  'Scanner':'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35',
+  'Management':'M2 13h20 M5 13V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6 M8 21h8 M12 17v4',
+  'Groups':'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+  'Files':'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8',
+  'Hosts':'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M8 18v2 M16 18v2 M6 20h12',
+  'Users':'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+  'Domains':'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z',
+  'Sockets':'M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32',
+  'AD Domains':'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10',
+  'Enrollment':'M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M8.5 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M20 8v6 M23 11h-6',
+  'AWS Buckets':'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z',
+  'AWS Addresses':'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z M12 10m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0',
+  'Subdomains':'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+  'SaaS Users':'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M17 11l2 2 4-4',
+  'Microsoft Teams':'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+  'SharePoint Sites':'M12 2l-10 5v2h20V7L12 2z M4 9v11h16V9 M8 13h8 M8 17h5',
+  'Email Forwarding Rules':'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6 M15 13l3 3-3 3',
+  'Endpoint Protection Policy':'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
+  'IT Hygiene':'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+  'IDP Policies':'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4',
+  'ITDR Policy':'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4',
+  'Web Filtering Policy':'M5 12.55a11 11 0 0 1 14.08 0 M1.42 9a16 16 0 0 1 21.16 0 M8.53 16.11a6 6 0 0 1 6.95 0 M12 20h.01 M12 12v4',
+  'Email Policy':'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8',
+  'Allowlist':'M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3',
+  'Blocklists':'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z M4.93 4.93l14.14 14.14',
+  'Blocklist':'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z M4.93 4.93l14.14 14.14',
+  'Requests':'M22 12h-4l-3 3H9l-3-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
+  'Decoy Users':'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M12 14l2-2-2-2-2 2 2 2z',
+  'Decoy Files':'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 11v6 M9 14l3-3 3 3',
+  'Decoy Network':'M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32 M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
+  'Threat Hunting':'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z M22 12h-4 M6 12H2 M12 6V2 M12 22v-4 M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
+  'Custom XDR Rules':'M16 18l6-6-6-6 M8 6l-6 6 6 6',
+  'Remediations':'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
+  'Playbooks':'M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z',
+  'Auto Remediation':'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  'Action History':'M3 3v5h5 M3.05 13A9 9 0 1 0 6 5.3L3 8',
+  'Allowlist & Exclusions':'M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3',
+  'View Reports':'M18 20V10 M12 20V4 M6 20v-6',
+  'Report Scheduling':'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01',
+  'Configuration':'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
+  'Advanced':'M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3',
+  'Alerts (Settings)':'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
+  'Users & Roles':'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+  'Integrations':'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+  'Security':'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12h6 M12 9v6',
+};
+const IC_DEFAULT = 'M3 12h18 M3 6h18 M3 18h18';
+
+function getIcon(item) {
+  const path = IC[item] || IC_DEFAULT;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${
+    path.split(' M').map((p,i)=>i===0?`<path d="${p}"/>`:`<path d="M${p}"/>`).join('')
+  }</svg>`;
+}
+
+// ────────────────────────────────────────────────
+// TEST QUESTIONS
+// ────────────────────────────────────────────────
+const QUESTIONS = [
+  { difficulty:'easy', text:'You received an alert about a suspicious file on one of your endpoints. Where would you go first?', hint:'Think about where active security events live.' },
+  { difficulty:'easy', text:'You want to see a complete list of all endpoints Cynet is currently protecting. Where would you look?', hint:'Think about your assets.' },
+  { difficulty:'easy', text:'You need to generate a monthly compliance report for your management. Where do you go?', hint:'' },
+  { difficulty:'easy', text:'You want to add a new admin user to the platform. Where would you find that?', hint:'' },
+  { difficulty:'medium', text:'You want to check if there are any unpatched vulnerabilities across your environment. Where would you look?', hint:'' },
+  { difficulty:'medium', text:'You want to review which users had unusual Active Directory login activity last week. Where do you go?', hint:'' },
+  { difficulty:'medium', text:'You want to see all AWS resources (buckets, IP addresses) that Cynet is monitoring. Where would you find that?', hint:'Think about cloud assets.' },
+  { difficulty:'medium', text:'You want to block all employees from accessing social media websites. Where would you configure that?', hint:'Think about rules and policies.' },
+  { difficulty:'hard', text:'You want to see exactly what automated actions Cynet took on your behalf last night. Where would you look?', hint:'There may be more than one reasonable answer — pick the most natural one.' },
+  { difficulty:'hard', text:'You want to deploy honeypot traps to detect lateral movement in your network. Where would you configure that?', hint:'' },
+  { difficulty:'hard', text:'A security tool you use is being flagged as malicious. You want to whitelist it so Cynet stops blocking it. Where would you go?', hint:'' },
+  { difficulty:'hard', text:'You want to write a custom detection rule to catch a specific threat pattern your team identified. Where would you go?', hint:'' },
+];
+
+// ────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────
+let currentTab = null;
+let currentItem = null;
+let testMode = false;
+let qIndex = 0;
+let qAnswers = [];
+let qAnswered = false;
+
+// ────────────────────────────────────────────────
+// SCROLL HINT
+// ────────────────────────────────────────────────
+function updateScrollHint() {
+  const sidebar = document.getElementById('sidebar');
+  const fade = document.getElementById('sidebarFade');
+  const more = document.getElementById('sidebarMore');
+  if (!sidebar || !fade || !more) return;
+  const atBottom = sidebar.scrollTop + sidebar.clientHeight >= sidebar.scrollHeight - 8;
+  const canScroll = sidebar.scrollHeight > sidebar.clientHeight + 8;
+  const show = canScroll && !atBottom;
+  fade.classList.toggle('visible', show);
+  more.classList.toggle('visible', show);
+}
+
+// ────────────────────────────────────────────────
+// SEARCH
+// ────────────────────────────────────────────────
+let searchQuery = '';
+
+function buildSearchBar() {
+  return `<div class="search-wrap">
+    <div class="search-inner">
+      <span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      <input class="search-input" id="searchInput" type="text" placeholder="Search…" autocomplete="off" oninput="onSearch(this.value)" />
+      <button class="search-clear" id="searchClear" onclick="clearSearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  </div>`;
+}
+
+function onSearch(val) {
+  searchQuery = val.trim().toLowerCase();
+  document.getElementById('searchClear').style.display = searchQuery ? 'flex' : 'none';
+  applySearch();
+}
+
+function clearSearch() {
+  searchQuery = '';
+  const inp = document.getElementById('searchInput');
+  if (inp) inp.value = '';
+  document.getElementById('searchClear').style.display = 'none';
+  applySearch();
+}
+
+function highlight(text, query) {
+  if (!query) return text;
+  const idx = text.toLowerCase().indexOf(query);
+  if (idx === -1) return text;
+  return text.slice(0, idx) + '<mark>' + text.slice(idx, idx + query.length) + '</mark>' + text.slice(idx + query.length);
+}
+
+function applySearch() {
+  if (!currentTab) return;
+  const sidebar = document.getElementById('sidebar');
+  const items = sidebar.querySelectorAll('.nav-item');
+  const labels = sidebar.querySelectorAll('.section-label');
+  let anyVisible = false;
+
+  if (!searchQuery) {
+    items.forEach(el => { el.style.display = ''; el.innerHTML = getIcon(el.dataset.item) + el.dataset.item; });
+    labels.forEach(el => el.style.display = '');
+    const empty = sidebar.querySelector('.search-empty');
+    if (empty) empty.remove();
+    setTimeout(updateScrollHint, 50);
+    return;
+  }
+
+  const sectionVisible = {};
+  items.forEach(el => {
+    const name = el.dataset.item;
+    const match = name.toLowerCase().includes(searchQuery);
+    el.style.display = match ? '' : 'none';
+    if (match) { sectionVisible[el.dataset.section] = true; anyVisible = true; el.innerHTML = getIcon(name) + highlight(name, searchQuery); }
+  });
+
+  labels.forEach(el => {
+    const sectionName = el.dataset.section;
+    el.style.display = sectionVisible[sectionName] ? '' : 'none';
+  });
+
+  let empty = sidebar.querySelector('.search-empty');
+  if (!anyVisible) {
+    if (!empty) { empty = document.createElement('div'); empty.className = 'search-empty'; sidebar.appendChild(empty); }
+    empty.textContent = `No results for "${searchQuery}"`;
+  } else if (empty) { empty.remove(); }
+
+  setTimeout(updateScrollHint, 50);
+}
+
+// ────────────────────────────────────────────────
+// SIDEBAR RENDER
+// ────────────────────────────────────────────────
+function renderSidebar(tabKey) {
+  const tab = NAV[tabKey];
+  const sidebar = document.getElementById('sidebar');
+  let html = `<div class="sidebar-header">${tab.label}</div>`;
+  html += buildSearchBar();
+  tab.sections.forEach(section => {
+    if (section.title) html += `<div class="section-label" data-section="${section.title}">${section.title}</div>`;
+    section.items.forEach(item => {
+      html += `<button class="nav-item" data-tab="${tabKey}" data-item="${item}" data-section="${section.title||''}">${getIcon(item)}${item}</button>`;
+    });
+  });
+  sidebar.innerHTML = html;
+
+  sidebar.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => selectItem(btn.dataset.tab, btn.dataset.item, btn.dataset.section));
+  });
+  sidebar.removeEventListener('scroll', updateScrollHint);
+  sidebar.addEventListener('scroll', updateScrollHint);
+  searchQuery = '';
+  setTimeout(updateScrollHint, 50);
+}
+
+// ────────────────────────────────────────────────
+// TAB / ITEM SELECTION
+// ────────────────────────────────────────────────
+function selectTab(tabKey) {
+  if (currentTab === tabKey) return;
+  currentTab = tabKey;
+  currentItem = null;
+  document.querySelectorAll('.rail-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tabKey));
+  renderSidebar(tabKey);
+  if (!testMode) showWelcome();
+  else showTestPrompt();
+}
+
+function selectItem(tabKey, itemName, sectionTitle) {
+  currentItem = itemName;
+  clearSearch();
+  document.querySelectorAll('.nav-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.tab === tabKey && el.dataset.item === itemName && el.dataset.section === sectionTitle)
+  );
+  showPlaceholder(tabKey, itemName, sectionTitle);
+  if (testMode && !qAnswered) {
+    qAnswers[qIndex] = { tab: tabKey, item: itemName, section: sectionTitle };
+    qAnswered = true;
+    renderQuestion();
+  }
+}
+
+function showWelcome() {
+  document.getElementById('main').innerHTML = `<div class="welcome">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <div class="welcome-title">Select a screen</div>
+    <div class="welcome-sub">Click any item in the sidebar to navigate to it.</div>
+  </div>`;
+  setTimeout(updateScrollHint, 60);
+}
+
+function showPlaceholder(tabKey, itemName, sectionTitle) {
+  const tab = NAV[tabKey];
+  const desc = getScreenDesc(tabKey, sectionTitle, itemName);
+  const breadcrumb = sectionTitle
+    ? `${tab.label} <span class="sep">›</span> <span>${sectionTitle}</span> <span class="sep">›</span> <span>${itemName}</span>`
+    : `${tab.label} <span class="sep">›</span> <span>${itemName}</span>`;
+  document.getElementById('main').innerHTML = `
+    <div class="placeholder" id="placeholder">
+      <div class="placeholder-icon">${tab.icon}</div>
+      <div class="placeholder-title">${itemName}</div>
+      ${desc ? `<div class="placeholder-desc">${desc}</div>` : ''}
+      <div class="placeholder-path">${breadcrumb}</div>
+    </div>`;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const el = document.getElementById('placeholder');
+    if (el) el.classList.add('visible');
+  }));
+}
+
+// ────────────────────────────────────────────────
+// TEST MODE
+// ────────────────────────────────────────────────
+function toggleTest() {
+  testMode = !testMode;
+  const btn = document.getElementById('testBtn');
+  btn.classList.toggle('active', testMode);
+  btn.innerHTML = testMode
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> End Test`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Navigation Test`;
+
+  if (testMode) {
+    qIndex = 0; qAnswers = []; qAnswered = false;
+    const panel = document.getElementById('qPanel');
+    panel.classList.add('visible');
+    renderQuestion();
+    showTestPrompt();
+  } else {
+    document.getElementById('qPanel').classList.remove('visible');
+    showWelcome();
+  }
+}
+
+function showTestPrompt() {
+  if (!testMode || qAnswered) return;
+  document.getElementById('main').innerHTML = `<div class="welcome">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <div class="welcome-title">Navigate to your answer</div>
+    <div class="welcome-sub">Read the question below, then click the item in the sidebar where you'd expect to find it.</div>
+  </div>`;
+}
+
+function renderQuestion() {
+  const panel = document.getElementById('qContent');
+  if (qIndex >= QUESTIONS.length) { renderSummary(); return; }
+  const q = QUESTIONS[qIndex];
+  const ans = qAnswers[qIndex];
+  const pct = Math.round((qIndex / QUESTIONS.length) * 100);
+  const diffLabel = { easy:'Easy', medium:'Medium', hard:'Hard' }[q.difficulty];
+  panel.innerHTML = `
+    <div class="q-header">
+      <div class="q-badge">Q${qIndex+1} / ${QUESTIONS.length}</div>
+      <div class="q-progress-wrap"><div class="q-progress-bar" style="width:${pct}%"></div></div>
+      <button class="q-close" onclick="toggleTest()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="q-body">
+      <div class="q-difficulty ${q.difficulty}">${diffLabel}</div>
+      <div class="q-text">${q.text}</div>
+      ${q.hint ? `<div class="q-hint">💡 ${q.hint}</div>` : ''}
+      ${ans ? `<div class="q-answer neutral show">You navigated to: <strong>${NAV[ans.tab].label} ${ans.section ? '› ' + ans.section + ' ' : ''}› ${ans.item}</strong></div>` : ''}
+    </div>
+    <div class="q-footer">
+      ${qIndex > 0 ? `<button class="q-btn secondary" onclick="prevQ()">← Back</button>` : ''}
+      <button class="q-btn secondary" onclick="skipQ()">Skip</button>
+      ${ans ? `<button class="q-btn primary" onclick="nextQ()">Next question →</button>` : ''}
+      <span class="q-answered-label">${qAnswers.filter(Boolean).length} answered</span>
+    </div>`;
+}
+
+function nextQ() {
+  qIndex++;
+  qAnswered = !!qAnswers[qIndex];
+  if (qIndex >= QUESTIONS.length) { renderSummary(); return; }
+  renderQuestion();
+  if (!qAnswered) showTestPrompt();
+}
+
+function prevQ() {
+  if (qIndex > 0) { qIndex--; qAnswered = !!qAnswers[qIndex]; renderQuestion(); if (!qAnswered) showTestPrompt(); }
+}
+
+function skipQ() {
+  if (!qAnswers[qIndex]) qAnswers[qIndex] = null;
+  nextQ();
+}
+
+function renderSummary() {
+  const answered = qAnswers.filter(a => a !== null && a !== undefined).length;
+  document.getElementById('qContent').innerHTML = `
+    <div class="q-header">
+      <div class="q-badge">Done!</div>
+      <div class="q-progress-wrap"><div class="q-progress-bar" style="width:100%"></div></div>
+      <button class="q-close" onclick="toggleTest()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="q-summary">
+      <div class="q-summary-title">Test complete ✓</div>
+      <div class="q-summary-sub">You answered ${answered} of ${QUESTIONS.length} questions. Here's a summary of where you navigated:</div>
+      <div class="q-results">
+        ${QUESTIONS.map((q,i) => {
+          const a = qAnswers[i];
+          const aLabel = a ? `${NAV[a.tab].label}${a.section?' › '+a.section:''} › ${a.item}` : '—';
+          return `<div class="q-result-row">
+            <div class="q-result-q">Q${i+1}. ${q.text.slice(0,70)}…</div>
+            <div class="q-result-a ${a?'':'skipped'}">${aLabel}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  document.getElementById('main').innerHTML = `<div class="welcome">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <div class="welcome-title">Test complete!</div>
+    <div class="welcome-sub">Thank you. Review your answers in the panel below.</div>
+  </div>`;
+}
+
+// ────────────────────────────────────────────────
+// INIT
+// ────────────────────────────────────────────────
+document.querySelectorAll('.rail-item').forEach(btn => {
+  btn.addEventListener('click', () => selectTab(btn.dataset.tab));
+});
+selectTab('dashboard');
+</script>
+</body>
+</html>

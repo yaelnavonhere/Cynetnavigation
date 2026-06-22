@@ -603,7 +603,7 @@ function selectItem(tabKey, itemName, sectionTitle) {
   currentItem = itemName;
   // Update URL hash so Maze can track navigation steps
   const hashKey = (tabKey + '-' + itemName).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
-  history.pushState(null, '', '#' + hashKey);
+  location.hash = hashKey;
   clearSearch();
   document.querySelectorAll('.nav-item').forEach(el =>
     el.classList.toggle('active', el.dataset.tab === tabKey && el.dataset.item === itemName && el.dataset.section === sectionTitle)
